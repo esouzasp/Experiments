@@ -91,7 +91,7 @@
     <div class="fp" id="cFp"></div>
     <label for="ttl">Mensagens que você enviar, se não forem lidas</label>
     <select id="ttl" autocomplete="off" style="width:100%;padding:9px;border:1px solid var(--line);background:var(--bg);color:var(--text)">
-      <option value="86400000" selected>Expiram em 24 h</option>
+      <option value="86400000" selected>Expiram em 24:00:00</option>
       <option value="0">Nunca expiram (ficam até serem lidas)</option>
     </select>
     <div class="row"><button class="btn" id="btnSave">Salvar e entrar</button></div>
@@ -427,13 +427,15 @@ setInterval(()=>{
 }, 1000);
 
 // ---------- render ----------
-const fmtLeftShort = ms => { const m = Math.max(1, Math.ceil(ms/60000)); return m >= 60 ? Math.ceil(m/60)+' h' : m+' min'; };
+const hms = ms => { const t = Math.max(0, Math.floor(ms/1000)); return [Math.floor(t/3600), Math.floor(t%3600/60), t%60].map(n=>String(n).padStart(2,'0')).join(':'); };
+// contagem regressiva das mensagens pendentes (só atualiza o texto, sem redesenhar)
+setInterval(()=>{ document.querySelectorAll('.exp').forEach(el=>{ el.textContent = hms(+el.dataset.exp - Date.now()); }); }, 1000);
 const fmtTime = ts => new Date(ts).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
 const whoLabel = fp => fp===myFp ? 'Você' : fp===contact.fp ? esc(contact.name) : '⚠ chave desconhecida';
 function render(){
   const list = $('list');
   const items = [];
-  const expLabel = d => !d.ttl && d.ttl!==undefined ? '<span>∞ não expira</span>' : `<span>⏳ expira em ${fmtLeftShort((d.ts||0)+(d.ttl||86400000)-Date.now())}</span>`;
+  const expLabel = d => { if(d.ttl===0) return '<span>∞ não expira</span>'; const at=(d.ts||0)+(d.ttl||86400000); return `<span>⏳ <span class="exp" data-exp="${at}">${hms(at-Date.now())}</span></span>`; };
   const cipherBox = c => `<div class="cipher" title="mensagem original (cifrada)">${esc(String(c||'').slice(0,240))}${String(c||'').length>240?'…':''}</div>`;
   for(const s of docs){
     const d = s.data() || {};
