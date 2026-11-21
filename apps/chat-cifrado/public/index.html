@@ -79,7 +79,7 @@
     <textarea id="cPub" rows="4" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
     <div class="fp" id="cFp"></div>
     <div class="row"><button class="btn" id="btnSave">Salvar e entrar</button></div>
-    <p class="note">Nome da sala e chave pública ficam salvos neste navegador (são públicos). Sua chave privada e sua senha <b>nunca</b> são salvas nem enviadas ao servidor: você as informa a cada mensagem. Não há histórico: cada mensagem é apagada do servidor no instante em que é decodificada, some da tela em 60 s, e mensagens não lidas expiram em 24 h.</p>
+    <p class="note">Nada fica salvo no navegador: recarregar ou fechar a página encerra a sessão. Sua chave privada e sua senha <b>nunca</b> são salvas nem enviadas ao servidor: você as informa a cada mensagem. Não há histórico: cada mensagem é apagada do servidor no instante em que é decodificada, some da tela em 60 s, e mensagens não lidas expiram em 24 h.</p>
 
     <details>
       <summary>Ainda não tem chaves? Gerar um par aqui</summary>
@@ -123,7 +123,9 @@
 <script>
 const C = crypto.subtle, enc = new TextEncoder(), dec = new TextDecoder();
 const $ = id => document.getElementById(id);
-const store = { get(k){ try{return localStorage.getItem(k)}catch{return null} }, set(k,v){ try{localStorage.setItem(k,v)}catch{} } };
+// Nada é guardado no navegador: recarregar a página encerra a sessão.
+try{ ['chat.room','chat.cPub','chat.cName','chat.myFp'].forEach(k=>localStorage.removeItem(k)); }catch{}
+document.querySelectorAll('input,textarea').forEach(el=>{ el.value=''; el.setAttribute('autocomplete', el.type==='password' ? 'new-password' : 'off'); });
 
 // ---------- utilidades ----------
 const b64 = buf => { let s=''; const b=new Uint8Array(buf); for(let i=0;i<b.length;i+=0x8000) s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000)); return btoa(s); };
@@ -179,9 +181,9 @@ async function openIdentity(keyText, pass){
 
 // ---------- estado ----------
 let pollTimer = null, loadTimer = null, online = false;
-let room = store.get('chat.room') || '';
+let room = '';
 let contact = { name: 'Contato', spki: null, fp: '' };
-let myFp = store.get('chat.myFp') || '';
+let myFp = '';
 let docs = [];                 // mensagens ainda não lidas (no servidor)
 const revealed = new Map();    // id -> {text, verified, ts, until}  (só na memória, some sozinho)
 const sentLocal = new Map();   // id -> {ts, read}  (só nesta aba)
@@ -191,7 +193,6 @@ const SHOW_SECONDS = 60, TTL_MS = 24*60*60*1000;
 // ---------- configuração ----------
 function setCfg(on){ $('cfg').classList.toggle('on', on); $('btnCfg').textContent = on ? 'Fechar' : 'Configurar'; if(on) $('cfg').scrollIntoView({block:'start'}); }
 $('btnCfg').onclick = ()=> setCfg(!$('cfg').classList.contains('on'));
-$('room').value = room; $('cPub').value = store.get('chat.cPub') || '';
 async function loadContact(){
   try{
     const {label,data} = unpem($('cPub').value);
@@ -208,7 +209,6 @@ $('btnSave').onclick = async ()=>{
   if(!r){ banner('Escolha um nome de sala.', true); return; }
   if(!contact.spki){ banner('Cole uma chave pública válida do contato.', true); return; }
   $('room').value = r;
-  store.set('chat.room', r); store.set('chat.cPub', $('cPub').value.trim());
   setCfg(false);
   joinRoom(r);
 };
@@ -292,7 +292,7 @@ $('btnSend').onclick = async ()=>{
   if(!id) return;
   $('btnSend').disabled = true;
   try{
-    myFp = id.fp; store.set('chat.myFp', myFp);
+    myFp = id.fp;
     const packet = await sealMessage(text, [contact.spki]);
     const d = { v:2, ts: Date.now(), fromFp: id.fp, toFp: contact.fp, fromPub: b64(id.spki), toPub: b64(contact.spki) };
     const sig = new Uint8Array(await C.sign({...PSS, saltLength:32}, id.signKey, signedBytes(d, packet)));
@@ -334,7 +334,7 @@ async function decryptAndBurn(snap, id){
 async function openFlow(snapId){
   const id = await askKey({title:'Decodificar e destruir', sub:`Informe sua chave privada e senha. A mensagem é apagada do servidor ao ser aberta e some da tela em ${SHOW_SECONDS} s.`, allowAll:true});
   if(!id) return;
-  myFp = id.fp; store.set('chat.myFp', myFp);
+  myFp = id.fp;
   const targets = id.all ? docs.filter(s=>(s.data()||{}).toFp===id.fp) : docs.filter(s=>s.id===snapId);
   if(id.all && !targets.length){ banner('Nenhuma mensagem pendente para esta chave.', true); return; }
   let fails = 0;
@@ -406,7 +406,6 @@ function leaveRoom(){
   for(const v of revealed.values()) v.text = '';
   revealed.clear(); sentLocal.clear(); docs = [];
   room = ''; contact.spki = null; contact.fp = '';
-  try{ localStorage.removeItem('chat.room'); localStorage.removeItem('chat.cPub'); }catch{}
   $('room').value = ''; $('cPub').value = ''; $('cFp').textContent = '';
   $('roomPill').textContent = 'sala: —'; $('btnLeave').style.display = 'none';
   $('draft').value = ''; banner(''); render(); setCfg(true);
