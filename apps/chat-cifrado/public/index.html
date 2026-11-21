@@ -67,6 +67,7 @@
   <header>
     <h1>🔐 Chat Cifrado</h1>
     <span class="pill" id="roomPill">sala: —</span>
+    <button class="btn alt sm" id="btnLock" style="display:none" title="Esquecer a chave agora">🔓 Chave ativa · Bloquear</button>
     <button class="btn alt sm" id="btnLeave" style="display:none">Sair da sala</button>
     <a class="btn alt sm" href="/chaves/" style="text-decoration:none">🔑 Gerar chaves</a>
     <button class="btn alt sm" id="btnCfg">Configurar</button>
@@ -114,6 +115,7 @@
     <textarea id="mKey" rows="4" placeholder="-----BEGIN ENCRYPTED PRIVATE KEY-----"></textarea>
     <label for="mPass">Senha</label>
     <input id="mPass" type="password" autocomplete="current-password">
+    <label class="chk"><input type="checkbox" id="mKeep"> Manter a chave ativa nesta conversa (bloqueia após 5 min sem uso)</label>
     <label class="chk" id="mAllWrap"><input type="checkbox" id="mAll"> Abrir todas as mensagens para mim com esta chave</label>
     <div class="st" id="mSt"></div>
     <div class="row"><button class="btn" id="mOk">Confirmar</button><button class="btn alt" id="mCancel">Cancelar</button></div>
@@ -238,17 +240,33 @@ document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async ()=>{
 // ---------- modal: pede chave + senha ----------
 $('mPass').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); if(!$('mOk').disabled && $('mOk').onclick) $('mOk').click(); } });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape' && $('scrim').classList.contains('on') && $('mCancel').onclick) $('mCancel').click(); });
+// Chave da sessão: só na memória da aba, objetos CryptoKey não exportáveis.
+// Some ao bloquear, após 5 min sem uso, ao sair da sala ou ao recarregar.
+const KEEP_MS = 5*60*1000;
+let session = null, lockTimer = null;
+function lockSession(){
+  session = null; clearTimeout(lockTimer);
+  $('btnLock').style.display = 'none';
+}
+function touchSession(){
+  clearTimeout(lockTimer);
+  lockTimer = setTimeout(()=>{ lockSession(); banner('Chave bloqueada após 5 min sem uso.'); }, KEEP_MS);
+}
+$('btnLock').onclick = ()=>{ lockSession(); banner('Chave bloqueada.'); };
 function askKey({title, sub, allowAll}){
+  if(session){ touchSession(); return Promise.resolve({...session, all:false}); }
   return new Promise(resolve=>{
     $('mTitle').textContent = title; $('mSub').textContent = sub || '';
-    $('mKey').value=''; $('mPass').value=''; $('mAll').checked=false; $('mSt').textContent=''; $('mSt').className='st';
+    $('mKey').value=''; $('mPass').value=''; $('mAll').checked=false; $('mKeep').checked=false; $('mSt').textContent=''; $('mSt').className='st';
     $('mAllWrap').style.display = allowAll ? 'flex' : 'none';
     $('scrim').classList.add('on'); setTimeout(()=>$('mKey').focus(), 50);
     const close = v => { $('scrim').classList.remove('on'); $('mKey').value=''; $('mPass').value=''; $('mOk').onclick=$('mCancel').onclick=null; resolve(v); };
     $('mCancel').onclick = ()=>close(null);
     $('mOk').onclick = async ()=>{
       $('mOk').disabled=true; $('mSt').textContent='Verificando…'; $('mSt').className='st';
-      try{ const id = await openIdentity($('mKey').value, $('mPass').value); id.all = $('mAll').checked; close(id); }
+      try{ const id = await openIdentity($('mKey').value, $('mPass').value); id.all = $('mAll').checked;
+        if($('mKeep').checked){ session = { decKey:id.decKey, signKey:id.signKey, spki:id.spki, fp:id.fp }; $('btnLock').style.display=''; touchSession(); }
+        close(id); }
       catch(err){ $('mSt').textContent=err.message; $('mSt').className='st err'; }
       $('mOk').disabled=false;
     };
@@ -404,6 +422,7 @@ async function refresh(){
   }catch(e){ if(online) banner('Sem conexão com o servidor. Tentando de novo…', true); online = false; }
 }
 function leaveRoom(){
+  lockSession();
   clearInterval(pollTimer); clearTimeout(loadTimer);
   for(const v of revealed.values()) v.text = '';
   revealed.clear(); sentLocal.clear(); docs = [];
