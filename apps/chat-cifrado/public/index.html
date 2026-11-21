@@ -34,6 +34,9 @@
   label{display:block;font-size:13px;color:var(--muted);margin:10px 0 5px}
   .drawer{border-bottom:1px solid var(--line);background:var(--panel);padding:4px 14px 14px;display:none}
   .drawer.on{display:block}
+  /* Tela de entrada: só a configuração, sem o chat */
+  body.lobby .drawer{display:block;flex:1;overflow-y:auto;border-bottom:0}
+  body.lobby #list, body.lobby footer, body.lobby #btnCfg{display:none!important}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
   .fp{font:12px var(--mono);color:var(--muted);word-break:break-all;margin-top:5px}
   .note{font-size:13px;color:var(--muted);border-left:3px solid var(--warn);padding:5px 10px;margin:10px 0 0}
@@ -95,7 +98,7 @@
       <option value="86400000" selected>Expiram em 24:00:00</option>
       <option value="0">Nunca expiram (ficam até serem lidas)</option>
     </select>
-    <div class="row"><button class="btn" id="btnSave">Salvar e entrar</button></div>
+    <div class="row"><button class="btn" id="btnSave">Entrar</button></div>
     <details class="fold">
       <summary>ⓘ Privacidade e segurança</summary>
       <div class="fold-body">
@@ -231,6 +234,7 @@ const expiring = new Set();
 const SHOW_SECONDS = 60, TTL_MS = 24*60*60*1000;
 
 // ---------- configuração ----------
+function setLobby(){ document.body.classList.toggle('lobby', !room); }
 function setCfg(on){ $('cfg').classList.toggle('on', on); $('btnCfg').textContent = on ? 'Fechar' : 'Configurar'; if(on) $('cfg').scrollIntoView({block:'start'}); }
 $('btnCfg').onclick = ()=> setCfg(!$('cfg').classList.contains('on'));
 async function loadContact(){
@@ -492,13 +496,13 @@ function leaveRoom(){
   room = ''; contact.spki = null; contact.fp = '';
   $('room').value = ''; $('cPub').value = ''; $('cFp').textContent = '';
   $('roomPill').textContent = 'sala: —'; $('btnLeave').style.display = 'none';
-  $('draft').value = ''; banner(''); render(); setCfg(true);
+  $('draft').value = ''; banner(''); render(); setLobby(); setCfg(true);
 }
 $('btnLeave').onclick = leaveRoom;
 // Recarregar encerra a sessão: pede confirmação enquanto houver uma sala aberta
 window.addEventListener('beforeunload', e=>{ if(room){ e.preventDefault(); e.returnValue=''; } });
 function joinRoom(r){
-  room = r; $('roomPill').textContent = 'sala: ' + r; $('btnLeave').style.display = '';
+  room = r; setLobby(); setCfg(false); $('roomPill').textContent = 'sala: ' + r; $('btnLeave').style.display = '';
   revealed.clear(); sentLocal.clear(); docs = []; render();
   clearInterval(pollTimer); clearTimeout(loadTimer);
   loadTimer = setTimeout(()=>banner('Não foi possível carregar as mensagens. Verifique a conexão.', true), 10000);
@@ -507,6 +511,7 @@ function joinRoom(r){
 }
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refresh(); });
 
+setLobby();
 (async ()=>{
   await loadContact();
   if(room) { $('roomPill').textContent = 'sala: ' + room; } else { setCfg(true); }
