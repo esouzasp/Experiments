@@ -89,11 +89,16 @@
     <label for="cPub">Chave pública do contato</label>
     <textarea id="cPub" rows="4" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
     <div class="fp" id="cFp"></div>
+    <label for="ttl">Mensagens que você enviar, se não forem lidas</label>
+    <select id="ttl" autocomplete="off" style="width:100%;padding:9px;border:1px solid var(--line);background:var(--bg);color:var(--text)">
+      <option value="86400000" selected>Expiram em 24 h</option>
+      <option value="0">Nunca expiram (ficam até serem lidas)</option>
+    </select>
     <div class="row"><button class="btn" id="btnSave">Salvar e entrar</button></div>
     <details class="fold">
       <summary>ⓘ Privacidade e segurança</summary>
       <div class="fold-body">
-        <p class="note">Nada fica salvo no navegador: recarregar ou fechar a página encerra a sessão. Sua chave privada e sua senha <b>nunca</b> são salvas nem enviadas ao servidor: você as informa a cada mensagem. Não há histórico nem rastro: cada mensagem é apagada do servidor ao ser decodificada e some da tela em 60 s; para quem enviou, ela some assim que é lida. Não lidas expiram em 24 h.</p>
+        <p class="note">Nada fica salvo no navegador: recarregar ou fechar a página encerra a sessão. Sua chave privada e sua senha <b>nunca</b> são salvas nem enviadas ao servidor: você as informa a cada mensagem. Não há histórico nem rastro: cada mensagem é apagada do servidor ao ser decodificada e some da tela em 60 s; para quem enviou, ela some assim que é lida. Não lidas expiram em 24 h, ou nunca, conforme a opção de quem enviou.</p>
       </div>
     </details>
 
@@ -148,7 +153,7 @@
       <option value="28800000">Por 8 horas</option>
       <option value="86400000">Por 24 horas</option>
     </select>
-    <label class="chk" id="mAllWrap"><input type="checkbox" id="mAll"> Abrir todas as mensagens para mim com esta chave</label>
+    <label class="chk" id="mAllWrap"><input type="checkbox" id="mAll" checked> Decifrar todas as mensagens pendentes para mim (não só esta)</label>
     <div class="st" id="mSt"></div>
     <div class="row"><button class="btn" id="mOk">Confirmar</button><button class="btn alt" id="mCancel">Cancelar</button></div>
   </div>
@@ -305,10 +310,10 @@ function touchSession(){
 $('btnLock').onclick = ()=>{ lockSession(); banner('Chave bloqueada.'); };
 function askKey({title, sub, allowAll}){
   if(session && Date.now() >= session.expires){ lockSession(); }
-  if(session){ touchSession(); return Promise.resolve({...session, all:false}); }
+  if(session){ touchSession(); return Promise.resolve({...session, all:true}); }
   return new Promise(resolve=>{
     $('mTitle').textContent = title; $('mSub').textContent = sub || '';
-    $('mKey').value=''; $('mPass').value=''; $('mAll').checked=false; $('mKeep').value='0'; $('mSt').textContent=''; $('mSt').className='st';
+    $('mKey').value=''; $('mPass').value=''; $('mAll').checked=true; $('mKeep').value='0'; $('mSt').textContent=''; $('mSt').className='st';
     $('mAllWrap').style.display = allowAll ? 'flex' : 'none';
     $('scrim').classList.add('on'); setTimeout(()=>$('mKey').focus(), 50);
     const close = v => { $('scrim').classList.remove('on'); $('mKey').value=''; $('mPass').value=''; $('mOk').onclick=$('mCancel').onclick=null; resolve(v); };
@@ -365,7 +370,7 @@ $('btnSend').onclick = async ()=>{
   try{
     myFp = id.fp;
     const packet = await sealMessage(text, [contact.spki]);
-    const d = { v:2, ts: Date.now(), fromFp: id.fp, toFp: contact.fp, fromPub: b64(id.spki), toPub: b64(contact.spki) };
+    const d = { v:2, ts: Date.now(), ttl: +$('ttl').value, fromFp: id.fp, toFp: contact.fp, fromPub: b64(id.spki), toPub: b64(contact.spki) };
     const sig = new Uint8Array(await C.sign({...PSS, saltLength:32}, id.signKey, signedBytes(d, packet)));
     d.packet = b64(packet); d.sig = b64(sig);
     const res = await api('POST', '', d);
@@ -406,6 +411,7 @@ async function openFlow(snapId){
   const id = await askKey({title:'Decodificar e destruir', sub:`Informe sua chave privada e senha. A mensagem é apagada do servidor ao ser aberta e some da tela em ${SHOW_SECONDS} s.`, allowAll:true});
   if(!id) return;
   myFp = id.fp;
+  if(snapId===null) id.all = true;
   const targets = id.all ? docs.filter(s=>(s.data()||{}).toFp===id.fp) : docs.filter(s=>s.id===snapId);
   if(id.all && !targets.length){ banner('Nenhuma mensagem pendente para esta chave.', true); return; }
   let fails = 0;
@@ -421,18 +427,20 @@ setInterval(()=>{
 }, 1000);
 
 // ---------- render ----------
+const fmtLeftShort = ms => { const m = Math.max(1, Math.ceil(ms/60000)); return m >= 60 ? Math.ceil(m/60)+' h' : m+' min'; };
 const fmtTime = ts => new Date(ts).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
 const whoLabel = fp => fp===myFp ? 'Você' : fp===contact.fp ? esc(contact.name) : '⚠ chave desconhecida';
 function render(){
   const list = $('list');
   const items = [];
+  const expLabel = d => !d.ttl && d.ttl!==undefined ? '<span>∞ não expira</span>' : `<span>⏳ expira em ${fmtLeftShort((d.ts||0)+(d.ttl||86400000)-Date.now())}</span>`;
   const cipherBox = c => `<div class="cipher" title="mensagem original (cifrada)">${esc(String(c||'').slice(0,240))}${String(c||'').length>240?'…':''}</div>`;
   for(const s of docs){
     const d = s.data() || {};
     if(revealed.has(s.id)) continue;
     items.push({ ts:d.ts||0, html: (d.fromFp===myFp)
-      ? `<div class="bub me"><div class="meta"><b>Você</b><span>${fmtTime(d.ts)}</span></div>${cipherBox(d.packet)}<div class="body locked">🔒 enviada — aguardando leitura</div></div>`
-      : `<div class="bub"><div class="meta"><b>${whoLabel(d.fromFp)}</b><span>${fmtTime(d.ts)}</span></div>${cipherBox(d.packet)}<div class="body locked">🔒 cifrada <button class="btn alt sm" data-open="${esc(s.id)}">Decodificar</button></div></div>` });
+      ? `<div class="bub me"><div class="meta"><b>Você</b><span>${fmtTime(d.ts)}</span>${expLabel(d)}</div>${cipherBox(d.packet)}<div class="body locked">🔒 enviada — aguardando leitura</div></div>`
+      : `<div class="bub"><div class="meta"><b>${whoLabel(d.fromFp)}</b><span>${fmtTime(d.ts)}</span>${expLabel(d)}</div>${cipherBox(d.packet)}<div class="body locked">🔒 cifrada <button class="btn alt sm" data-open="${esc(s.id)}">Decodificar</button></div></div>` });
   }
   for(const [k,v] of revealed){
     const left = Math.max(0, Math.ceil((v.until-Date.now())/1000));
@@ -441,9 +449,12 @@ function render(){
   }
   if(!items.length){ list.innerHTML = `<div class="empty">${room ? 'Nenhuma mensagem pendente.' : 'Escolha uma sala e cole a chave pública do seu contato em <b>Configurar</b>.'}</div>`; return; }
   items.sort((a,b)=>a.ts-b.ts);
+  const incoming = docs.filter(s=>!revealed.has(s.id) && (s.data()||{}).fromFp!==myFp).length;
+  if(incoming >= 2) items.unshift({ ts:-1, html:`<div style="align-self:center"><button class="btn" id="btnOpenAll">🔓 Decodificar todas (${incoming})</button></div>` });
   const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
   list.innerHTML = items.map(i=>i.html).join('');
   list.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openFlow(b.dataset.open));
+  const oa = $('btnOpenAll'); if(oa) oa.onclick = ()=>openFlow(null);
   if(atBottom) list.scrollTop = list.scrollHeight;
 }
 

@@ -3,7 +3,8 @@
 // O servidor nunca vê texto puro nem chaves privadas. Ele só guarda pacotes
 // cifrados até o destinatário lê-los. A exclusão exige uma assinatura feita
 // com a chave privada do destinatário, então ninguém mais consegue apagar
-// (ou "fingir que leu") uma mensagem. Mensagens não lidas expiram em 24 h.
+// (ou "fingir que leu") uma mensagem. Quem envia escolhe se a mensagem não
+// lida expira em 24 h ou nunca expira (fica até ser lida).
 
 const TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_MSGS_PER_ROOM = 200;
@@ -53,6 +54,7 @@ export class Room {
   async create(room, request) {
     const body = await readJson(request);
     const { ts, fromFp, toFp, fromPub, toPub, packet, sig } = body;
+    const ttl = body.ttl === 0 ? 0 : TTL_MS;   // 0 = nunca expira
     if (typeof ts !== "number" || Math.abs(Date.now() - ts) > CLOCK_SKEW_MS) throw new Error("timestamp inválido");
     for (const [k, v, max] of [["fromPub", fromPub, MAX_KEY_B64], ["toPub", toPub, MAX_KEY_B64], ["packet", packet, MAX_PACKET_B64], ["sig", sig, MAX_KEY_B64]]) {
       if (typeof v !== "string" || !v || v.length > max) throw new Error(`campo ${k} inválido`);
@@ -69,9 +71,9 @@ export class Room {
     if (count >= MAX_MSGS_PER_ROOM) return json({ error: "room_full" }, 429);
 
     const id = crypto.randomUUID();
-    const msg = { id, v: 2, ts, fromFp, toFp, fromPub, toPub, packet, sig };
+    const msg = { id, v: 2, ts, ttl, fromFp, toFp, fromPub, toPub, packet, sig };
     await this.storage.put("m:" + id, msg);
-    if (!(await this.storage.getAlarm())) await this.storage.setAlarm(Date.now() + TTL_MS);
+    if (ttl) await this.scheduleAlarm();
     return json({ id }, 201);
   }
 
@@ -88,16 +90,27 @@ export class Room {
     return json({ ok: true });
   }
 
+  // Mensagens antigas (sem campo ttl) seguem a regra de 24 h
+  static expiresAt(v) { return v.ttl === 0 ? Infinity : v.ts + (v.ttl || TTL_MS); }
+
   async purgeExpired() {
     const all = await this.storage.list({ prefix: "m:" });
-    const old = [...all.entries()].filter(([, v]) => Date.now() - v.ts > TTL_MS).map(([k]) => k);
+    const old = [...all.entries()].filter(([, v]) => Date.now() >= Room.expiresAt(v)).map(([k]) => k);
     if (old.length) await this.storage.delete(old);
     return all.size - old.length;
   }
 
+  // Agenda o alarme para a próxima mensagem que vai expirar (se houver)
+  async scheduleAlarm() {
+    const all = await this.storage.list({ prefix: "m:" });
+    const next = Math.min(...[...all.values()].map(Room.expiresAt));
+    if (Number.isFinite(next)) await this.storage.setAlarm(Math.max(next, Date.now() + 1000));
+    else await this.storage.deleteAlarm();
+  }
+
   async alarm() {
     const left = await this.purgeExpired();
-    if (left > 0) await this.storage.setAlarm(Date.now() + 60 * 60 * 1000);
+    if (left > 0) await this.scheduleAlarm();
     else await this.storage.deleteAll();
   }
 }

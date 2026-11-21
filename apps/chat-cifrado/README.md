@@ -34,7 +34,7 @@ Um **Durable Object por sala** guarda as mensagens pendentes.
 | `POST /api/rooms/:sala/msgs` | Guarda uma mensagem. Rejeita se a assinatura do remetente não confere. |
 | `DELETE /api/rooms/:sala/msgs/:id` | Destrói a mensagem. Exige assinatura feita com a chave privada do **destinatário**. |
 
-Regras: no máximo 200 mensagens pendentes por sala, e as não lidas expiram em 24 h (alarme do Durable Object).
+Regras: no máximo 200 mensagens pendentes por sala. Quem envia escolhe, em *Configurar*, se a mensagem não lida expira em 24 h ou nunca expira (fica até ser lida); a expiração usa o alarme do Durable Object.
 
 ## Limites
 
