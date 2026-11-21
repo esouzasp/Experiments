@@ -3,7 +3,7 @@ main = "src/worker.js"
 compatibility_date = "2025-09-01"
 workers_dev = true
 
-# Páginas estáticas (chat em /, gerador de chaves em /chaves/)
+# Páginas estáticas (chat em /, com gerador de chaves em Configurar)
 [assets]
 directory = "./public"
 binding = "ASSETS"

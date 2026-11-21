@@ -6,7 +6,7 @@ Coleção de aplicações experimentais. Cada aplicação vive na sua própria p
 
 | App | O que é | Pasta |
 |---|---|---|
-| Chat Cifrado | Chat ponta a ponta entre duas pessoas, com chaves RSA. Mensagens são destruídas ao serem lidas. Inclui o gerador de chaves (Cofre de Chaves) em `/chaves/`. | [`apps/chat-cifrado`](apps/chat-cifrado) |
+| Chat Cifrado | Chat ponta a ponta entre duas pessoas, com chaves RSA. Mensagens são destruídas ao serem lidas. O gerador de chaves fica dentro do próprio chat. | [`apps/chat-cifrado`](apps/chat-cifrado) |
 
 ## Estrutura
 

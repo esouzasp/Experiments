@@ -2,8 +2,7 @@
 
 Chat entre duas pessoas com criptografia ponta a ponta. O servidor só guarda mensagens cifradas, e só até o destinatário lê-las: ao decodificar, a mensagem é apagada do servidor e some da tela em 60 s. Não há histórico.
 
-- `/` — o chat
-- `/chaves/` — Cofre de Chaves, para gerar o par de chaves (também dá para gerar dentro do chat, em *Configurar*)
+Tudo fica numa página só (`/`): o par de chaves é gerado dentro do chat, em *Configurar → 🔑 Ainda não tem chaves?*
 
 ## Como usar
 

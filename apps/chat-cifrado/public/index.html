@@ -70,7 +70,6 @@
     <span class="pill" id="roomPill">sala: —</span>
     <button class="btn alt sm" id="btnLock" style="display:none" title="Esquecer a chave agora">🔓 Chave ativa · Bloquear</button>
     <button class="btn alt sm" id="btnLeave" style="display:none">Sair da sala</button>
-    <a class="btn alt sm" href="/chaves/" style="text-decoration:none">🔑 Gerar chaves</a>
     <button class="btn alt sm" id="btnCfg">Configurar</button>
   </header>
   <div class="hx-stream" aria-hidden="true" style="padding:0 14px"></div>
@@ -85,17 +84,24 @@
     <p class="note">Nada fica salvo no navegador: recarregar ou fechar a página encerra a sessão. Sua chave privada e sua senha <b>nunca</b> são salvas nem enviadas ao servidor: você as informa a cada mensagem. Não há histórico nem rastro: cada mensagem é apagada do servidor ao ser decodificada e some da tela em 60 s; para quem enviou, ela some assim que é lida. Não lidas expiram em 24 h.</p>
 
     <details>
-      <summary>Ainda não tem chaves? Gerar um par aqui</summary>
-      <p class="note">Ou use o <a href="/chaves/" style="color:var(--accent)">Cofre de Chaves</a> (defina uma senha ao gerar).</p>
-      <label for="gPass">Senha para proteger a chave privada</label>
+      <summary>🔑 Ainda não tem chaves? Gerar um par aqui</summary>
+      <label for="gBits">Tamanho da chave RSA</label>
+      <select id="gBits" style="width:100%;padding:9px;border:1px solid var(--line);background:var(--bg);color:var(--text)">
+        <option value="2048">2048 bits (rápido)</option>
+        <option value="3072" selected>3072 bits (recomendado)</option>
+        <option value="4096">4096 bits (mais lento)</option>
+      </select>
+      <label for="gPass">Senha para proteger a chave privada (obrigatória)</label>
       <input id="gPass" type="password" autocomplete="new-password">
-      <div class="row"><button class="btn alt" id="btnGen">Gerar par (RSA 3072)</button><span class="st" id="stGen"></span></div>
+      <div class="row"><button class="btn alt" id="btnGen">Gerar par de chaves</button></div>
+      <div class="st" id="stGen"></div>
       <label>Sua chave pública — envie ao contato</label>
       <textarea id="gPub" rows="3" readonly></textarea>
       <div class="row"><button class="btn alt sm" data-copy="gPub">Copiar</button></div>
       <label>Sua chave privada — guarde em segredo</label>
       <textarea id="gPriv" rows="3" readonly></textarea>
       <div class="row"><button class="btn alt sm" data-copy="gPriv">Copiar</button></div>
+      <p class="note">Salve a chave privada e a senha num gerenciador de senhas. Se perder qualquer uma das duas, não há como recuperar. Ao recarregar a página, estes campos são apagados.</p>
     </details>
   </div>
 
@@ -148,7 +154,7 @@ async function fingerprint(spki){
 const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const OAEP = { name:'RSA-OAEP', hash:'SHA-256' }, PSS = { name:'RSA-PSS', hash:'SHA-256' };
 
-// ---------- senha da privada (mesmo formato do Cofre de Chaves) ----------
+// ---------- senha da privada (PBKDF2 → AES-GCM) ----------
 const ITER = 310000;
 async function passKey(pass, salt){
   const base = await C.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
@@ -220,16 +226,16 @@ function banner(msg, err){ const b=$('banner'); b.textContent = msg||''; b.class
 
 // ---------- gerar chaves ----------
 $('btnGen').onclick = async e => {
-  const b=e.target, st=$('stGen'); b.disabled=true; st.textContent='Gerando…'; st.className='st';
+  const b=e.target, st=$('stGen'); b.disabled=true; st.textContent='Gerando… (pode levar alguns segundos)'; st.className='st';
   try{
-    const pass=$('gPass').value; if(!pass) throw new Error('Defina uma senha.');
-    const kp = await C.generateKey({...OAEP, modulusLength:3072, publicExponent:new Uint8Array([1,0,1])}, true, ['encrypt','decrypt']);
+    const pass=$('gPass').value; if(!pass) throw new Error('Defina uma senha para proteger a chave privada.');
+    const kp = await C.generateKey({...OAEP, modulusLength:+$('gBits').value, publicExponent:new Uint8Array([1,0,1])}, true, ['encrypt','decrypt']);
     const spki = new Uint8Array(await C.exportKey('spki', kp.publicKey));
     const pkcs8 = new Uint8Array(await C.exportKey('pkcs8', kp.privateKey));
     $('gPub').value = pem('PUBLIC KEY', spki);
     $('gPriv').value = pem('ENCRYPTED PRIVATE KEY', await lockPriv(pkcs8, pass));
     pkcs8.fill(0);
-    st.textContent='Pronto. Fingerprint: '+await fingerprint(spki); st.className='st okk';
+    st.textContent='Pronto. Fingerprint da sua chave: '+await fingerprint(spki)+' — passe ao contato para ele conferir.'; st.className='st okk';
   }catch(err){ st.textContent=err.message; st.className='st err'; }
   b.disabled=false;
 };
