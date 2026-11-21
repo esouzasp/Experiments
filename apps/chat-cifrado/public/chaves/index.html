@@ -287,6 +287,8 @@ $('btnDec').onclick = e => busy(e.target, async ()=>{
   }catch(err){ status(st, 'Erro: '+err.message, 'err'); }
 });
 
+$('pass2').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); if(!$('btnDec').disabled) $('btnDec').click(); } });
+
 // ---------- copiar ----------
 document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async ()=>{
   const ta=$(b.dataset.copy); if(!ta.value) return;

@@ -236,6 +236,8 @@ document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async ()=>{
 });
 
 // ---------- modal: pede chave + senha ----------
+$('mPass').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); if(!$('mOk').disabled && $('mOk').onclick) $('mOk').click(); } });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && $('scrim').classList.contains('on') && $('mCancel').onclick) $('mCancel').click(); });
 function askKey({title, sub, allowAll}){
   return new Promise(resolve=>{
     $('mTitle').textContent = title; $('mSub').textContent = sub || '';
