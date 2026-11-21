@@ -62,6 +62,13 @@
   .st{font-size:13px;margin-top:8px;min-height:1em}
   .st.err{color:var(--err)} .st.okk{color:var(--ok)}
   details{margin-top:12px} summary{cursor:pointer;color:var(--muted);font-size:13px}
+  details.fold>summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--line);padding:10px 12px;color:var(--text);font-weight:600;user-select:none}
+  details.fold>summary::-webkit-details-marker{display:none}
+  details.fold>summary::after{content:"[+] abrir";flex:none;font-size:12px;font-weight:400;color:var(--muted)}
+  details.fold[open]>summary::after{content:"[−] minimizar"}
+  details.fold[open]>summary{border-bottom-style:dashed}
+  details.fold>.fold-body{border:1px solid var(--line);border-top:0;padding:2px 12px 12px}
+  .fold-body>.note:first-child{margin-top:10px}
 </style>
 <link rel="stylesheet" href="/retro.css">
 </head>
@@ -83,10 +90,16 @@
     <textarea id="cPub" rows="4" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
     <div class="fp" id="cFp"></div>
     <div class="row"><button class="btn" id="btnSave">Salvar e entrar</button></div>
-    <p class="note">Nada fica salvo no navegador: recarregar ou fechar a página encerra a sessão. Sua chave privada e sua senha <b>nunca</b> são salvas nem enviadas ao servidor: você as informa a cada mensagem. Não há histórico nem rastro: cada mensagem é apagada do servidor ao ser decodificada e some da tela em 60 s; para quem enviou, ela some assim que é lida. Não lidas expiram em 24 h.</p>
+    <details class="fold">
+      <summary>ⓘ Privacidade e segurança</summary>
+      <div class="fold-body">
+        <p class="note">Nada fica salvo no navegador: recarregar ou fechar a página encerra a sessão. Sua chave privada e sua senha <b>nunca</b> são salvas nem enviadas ao servidor: você as informa a cada mensagem. Não há histórico nem rastro: cada mensagem é apagada do servidor ao ser decodificada e some da tela em 60 s; para quem enviou, ela some assim que é lida. Não lidas expiram em 24 h.</p>
+      </div>
+    </details>
 
-    <details>
+    <details class="fold" id="keysFold">
       <summary>🔑 Ainda não tem chaves? Gerar um par aqui</summary>
+      <div class="fold-body">
       <label for="gBits">Tamanho da chave RSA</label>
       <select id="gBits" style="width:100%;padding:9px;border:1px solid var(--line);background:var(--bg);color:var(--text)">
         <option value="2048">2048 bits (rápido)</option>
@@ -104,6 +117,8 @@
       <textarea id="gPriv" rows="3" readonly></textarea>
       <div class="row"><button class="btn alt sm" data-copy="gPriv">Copiar</button></div>
       <p class="note">Salve a chave privada e a senha num gerenciador de senhas. Se perder qualquer uma das duas, não há como recuperar. Ao recarregar a página, estes campos são apagados.</p>
+      <div class="row"><button class="btn alt sm" type="button" id="btnFoldKeys">▲ Minimizar</button></div>
+      </div>
     </details>
   </div>
 
@@ -225,6 +240,8 @@ $('btnSave').onclick = async ()=>{
   joinRoom(r);
 };
 function banner(msg, err){ const b=$('banner'); b.textContent = msg||''; b.className = 'banner' + (err?' err':''); }
+
+$('btnFoldKeys').onclick = ()=>{ $('keysFold').open = false; $('keysFold').scrollIntoView({block:'nearest'}); };
 
 // ---------- gerar chaves ----------
 $('btnGen').onclick = async e => {
