@@ -73,8 +73,8 @@
           </select>
         </div>
         <div>
-          <label for="pass">Senha para proteger a chave privada (opcional)</label>
-          <input id="pass" type="password" placeholder="necessária para usar no chat" autocomplete="new-password">
+          <label for="pass">Senha para proteger a chave privada</label>
+          <input id="pass" type="password" placeholder="obrigatória" autocomplete="new-password">
         </div>
       </div>
       <div class="row"><button class="btn" id="btnGen">Gerar par de chaves</button></div>
@@ -217,6 +217,7 @@ async function unlockPriv(blob, pass){
 $('btnGen').onclick = e => busy(e.target, async ()=>{
   const st=$('stGen'); status(st,'Gerando… (pode levar alguns segundos)');
   try{
+    if(!$('pass').value) throw new Error('Defina uma senha para proteger a chave privada.');
     const kp = await C.generateKey({...RSA, modulusLength:+$('bits').value, publicExponent:new Uint8Array([1,0,1])}, true, ['encrypt','decrypt']);
     const spki = new Uint8Array(await C.exportKey('spki', kp.publicKey));
     const pkcs8 = new Uint8Array(await C.exportKey('pkcs8', kp.privateKey));
@@ -224,7 +225,7 @@ $('btnGen').onclick = e => busy(e.target, async ()=>{
     $('outPub').value = pem('PUBLIC KEY', spki);
     $('outPriv').value = pass ? pem('ENCRYPTED PRIVATE KEY', await lockPriv(pkcs8, pass)) : pem('PRIVATE KEY', pkcs8);
     $('fpPub').textContent = 'Fingerprint: ' + await fingerprint(spki);
-    status(st, pass ? 'Pronto. Chave privada protegida por senha.' : 'Pronto.', 'ok');
+    status(st, 'Pronto. Chave privada protegida por senha.', 'ok');
   }catch(err){ status(st, 'Erro: '+err.message, 'err'); }
 });
 $('usePub').onclick = ()=>{ if($('outPub').value){ $('inPub').value=$('outPub').value; updFp(); } show('cifrar'); };
