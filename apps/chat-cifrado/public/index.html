@@ -80,7 +80,7 @@
     <textarea id="cPub" rows="4" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
     <div class="fp" id="cFp"></div>
     <div class="row"><button class="btn" id="btnSave">Salvar e entrar</button></div>
-    <p class="note">Nada fica salvo no navegador: recarregar ou fechar a página encerra a sessão. Sua chave privada e sua senha <b>nunca</b> são salvas nem enviadas ao servidor: você as informa a cada mensagem. Não há histórico: cada mensagem é apagada do servidor no instante em que é decodificada, some da tela em 60 s, e mensagens não lidas expiram em 24 h.</p>
+    <p class="note">Nada fica salvo no navegador: recarregar ou fechar a página encerra a sessão. Sua chave privada e sua senha <b>nunca</b> são salvas nem enviadas ao servidor: você as informa a cada mensagem. Não há histórico nem rastro: cada mensagem é apagada do servidor ao ser decodificada e some da tela em 60 s; para quem enviou, ela some assim que é lida. Não lidas expiram em 24 h.</p>
 
     <details>
       <summary>Ainda não tem chaves? Gerar um par aqui</summary>
@@ -387,10 +387,7 @@ function render(){
     const seal = v.verified ? '<span class="ok">✓ assinatura válida</span>' : '<span class="bad">✗ assinatura não confere</span>';
     items.push({ ts:v.ts, html:`<div class="bub"><div class="meta"><b>${whoLabel(contact.fp)}</b><span>${fmtTime(v.ts)}</span>${seal}<span>🔥 some em ${left}s</span></div><div class="body">${esc(v.text)}</div></div>` });
   }
-  for(const [k,v] of sentLocal){
-    if(v.read) items.push({ ts:v.ts, html:`<div class="bub me"><div class="meta"><b>Você</b><span>${fmtTime(v.ts)}</span></div><div class="body locked">✓ lida e destruída</div></div>` });
-  }
-  if(!items.length){ list.innerHTML = `<div class="empty">${room ? 'Nenhuma mensagem pendente. Mensagens lidas são destruídas e não ficam aqui.' : 'Escolha uma sala e cole a chave pública do seu contato em <b>Configurar</b>.'}</div>`; return; }
+  if(!items.length){ list.innerHTML = `<div class="empty">${room ? 'Nenhuma mensagem pendente.' : 'Escolha uma sala e cole a chave pública do seu contato em <b>Configurar</b>.'}</div>`; return; }
   items.sort((a,b)=>a.ts-b.ts);
   const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
   list.innerHTML = items.map(i=>i.html).join('');
@@ -417,7 +414,7 @@ async function refresh(){
     online = true;
     docs = list.map(wrap);
     const ids = new Set(list.map(d=>d.id));
-    for(const [k,v] of sentLocal){ if(!ids.has(k)) v.read = true; }
+    for(const k of [...sentLocal.keys()]){ if(!ids.has(k)) sentLocal.delete(k); }   // lida: some sem deixar rastro
     render();
   }catch(e){ if(online) banner('Sem conexão com o servidor. Tentando de novo…', true); online = false; }
 }
