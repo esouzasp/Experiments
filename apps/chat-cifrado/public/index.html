@@ -98,7 +98,7 @@
   </div>
 
   <div class="banner" id="banner"></div>
-  <div id="list"><div class="empty" id="empty">Escolha uma sala e cole a chave pública do seu contato.<br><br><button class="btn" data-cfg>Abrir configuração</button></div></div>
+  <div id="list"><div class="empty" id="empty">Escolha uma sala e cole a chave pública do seu contato em <b>Configurar</b>.</div></div>
 
   <footer>
     <textarea id="draft" class="msg" placeholder="Mensagem…" rows="1"></textarea>
@@ -192,7 +192,6 @@ const SHOW_SECONDS = 60, TTL_MS = 24*60*60*1000;
 // ---------- configuração ----------
 function setCfg(on){ $('cfg').classList.toggle('on', on); $('btnCfg').textContent = on ? 'Fechar' : 'Configurar'; if(on) $('cfg').scrollIntoView({block:'start'}); }
 $('btnCfg').onclick = ()=> setCfg(!$('cfg').classList.contains('on'));
-document.addEventListener('click', e=>{ if(e.target.closest('[data-cfg]')) setCfg(true); });
 $('room').value = room; $('cName').value = store.get('chat.cName') || ''; $('cPub').value = store.get('chat.cPub') || '';
 async function loadContact(){
   contact.name = $('cName').value.trim() || 'Contato';
@@ -373,7 +372,7 @@ function render(){
   for(const [k,v] of sentLocal){
     if(v.read) items.push({ ts:v.ts, html:`<div class="bub me"><div class="meta"><b>Você</b><span>${fmtTime(v.ts)}</span></div><div class="body locked">✓ lida e destruída</div></div>` });
   }
-  if(!items.length){ list.innerHTML = `<div class="empty">${room ? 'Nenhuma mensagem pendente. Mensagens lidas são destruídas e não ficam aqui.' : 'Escolha uma sala e cole a chave pública do seu contato.<br><br><button class="btn" data-cfg>Abrir configuração</button>'}</div>`; return; }
+  if(!items.length){ list.innerHTML = `<div class="empty">${room ? 'Nenhuma mensagem pendente. Mensagens lidas são destruídas e não ficam aqui.' : 'Escolha uma sala e cole a chave pública do seu contato em <b>Configurar</b>.'}</div>`; return; }
   items.sort((a,b)=>a.ts-b.ts);
   const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
   list.innerHTML = items.map(i=>i.html).join('');
