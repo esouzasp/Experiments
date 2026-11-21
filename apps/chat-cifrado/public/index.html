@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat Cifrado — ponta a ponta</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --text:#e7e9ee; --muted:#9aa3b2;
+    --accent:#5eead4; --accent2:#a78bfa; --warn:#fbbf24; --err:#f87171; --ok:#4ade80;
+    --me:#123b37; --them:#221d36;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f7f9; --panel:#ffffff; --line:#dde1e8; --text:#161a22; --muted:#5b6475;
+      --accent:#0f766e; --accent2:#6d28d9; --warn:#b45309; --err:#b91c1c; --ok:#15803d;
+      --me:#d9f3ef; --them:#ece7fb; }
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .app{max-width:760px;margin:0 auto;height:100%;display:flex;flex-direction:column}
+  header{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:17px;margin:0;flex:1;white-space:nowrap}
+  .pill{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+  button{font:inherit;cursor:pointer}
+  .btn{background:var(--accent);color:#04201c;border:0;border-radius:8px;padding:9px 13px;font-weight:700}
+  .btn.alt{background:transparent;color:var(--text);border:1px solid var(--line);font-weight:600}
+  .btn.sm{padding:5px 9px;font-size:13px}
+  .btn:disabled{opacity:.5;cursor:wait}
+  textarea,input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px;font:13px/1.45 var(--mono)}
+  textarea.msg,input.plain{font-family:inherit;font-size:15px}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 5px}
+  .drawer{border-bottom:1px solid var(--line);background:var(--panel);padding:4px 14px 14px;display:none}
+  .drawer.on{display:block}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .fp{font:12px var(--mono);color:var(--muted);word-break:break-all;margin-top:5px}
+  .note{font-size:13px;color:var(--muted);border-left:3px solid var(--warn);padding:5px 10px;margin:10px 0 0}
+  .banner{margin:10px 14px 0;padding:9px 12px;border-radius:8px;font-size:13px;background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+  .banner.err{color:var(--err);border-color:var(--err)}
+  .banner:empty{display:none}
+  #list{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+  .empty{color:var(--muted);text-align:center;margin:auto;font-size:14px;max-width:360px}
+  .bub{max-width:82%;border-radius:12px;padding:8px 11px;border:1px solid var(--line);background:var(--them);align-self:flex-start}
+  .bub.me{background:var(--me);align-self:flex-end}
+  .meta{font-size:11.5px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .body{margin-top:4px;white-space:pre-wrap;word-break:break-word}
+  .locked{font-style:italic;color:var(--muted)}
+  .ok{color:var(--ok)} .bad{color:var(--err)}
+  footer{border-top:1px solid var(--line);padding:10px 14px;display:flex;gap:8px;align-items:flex-end;background:var(--bg)}
+  footer textarea{min-height:44px;max-height:140px;resize:none}
+  /* modal */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:14px;z-index:10}
+  .scrim.on{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;width:100%;max-width:520px;max-height:92vh;overflow:auto}
+  .modal h2{margin:0 0 4px;font-size:16px}
+  .modal p{margin:0;color:var(--muted);font-size:13px}
+  .chk{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);margin-top:10px}
+  .chk input{width:auto}
+  .st{font-size:13px;margin-top:8px;min-height:1em}
+  .st.err{color:var(--err)} .st.okk{color:var(--ok)}
+  details{margin-top:12px} summary{cursor:pointer;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>🔐 Chat Cifrado</h1>
+    <span class="pill" id="roomPill">sala: —</span>
+    <a class="btn alt sm" href="/chaves/" style="text-decoration:none">🔑 Gerar chaves</a>
+    <button class="btn alt sm" id="btnCfg">Configurar</button>
+  </header>
+
+  <div class="drawer" id="cfg">
+    <label for="room">Sala (as duas pessoas usam o mesmo nome)</label>
+    <input id="room" class="plain" placeholder="ex.: everton-ana" autocomplete="off">
+    <label for="cName">Nome do contato</label>
+    <input id="cName" class="plain" placeholder="ex.: Ana">
+    <label for="cPub">Chave pública do contato</label>
+    <textarea id="cPub" rows="4" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
+    <div class="fp" id="cFp"></div>
+    <div class="row"><button class="btn" id="btnSave">Salvar e entrar</button></div>
+    <p class="note">Nome da sala e chave pública ficam salvos neste navegador (são públicos). Sua chave privada e sua senha <b>nunca</b> são salvas nem enviadas ao servidor: você as informa a cada mensagem. Não há histórico: cada mensagem é apagada do servidor no instante em que é decodificada, some da tela em 60 s, e mensagens não lidas expiram em 24 h.</p>
+
+    <details>
+      <summary>Ainda não tem chaves? Gerar um par aqui</summary>
+      <p class="note">Ou use o <a href="/chaves/" style="color:var(--accent)">Cofre de Chaves</a> (defina uma senha ao gerar).</p>
+      <label for="gPass">Senha para proteger a chave privada</label>
+      <input id="gPass" type="password" autocomplete="new-password">
+      <div class="row"><button class="btn alt" id="btnGen">Gerar par (RSA 3072)</button><span class="st" id="stGen"></span></div>
+      <label>Sua chave pública — envie ao contato</label>
+      <textarea id="gPub" rows="3" readonly></textarea>
+      <div class="row"><button class="btn alt sm" data-copy="gPub">Copiar</button></div>
+      <label>Sua chave privada — guarde em segredo</label>
+      <textarea id="gPriv" rows="3" readonly></textarea>
+      <div class="row"><button class="btn alt sm" data-copy="gPriv">Copiar</button></div>
+    </details>
+  </div>
+
+  <div class="banner" id="banner"></div>
+  <div id="list"><div class="empty" id="empty">Escolha uma sala e cole a chave pública do seu contato.<br><br><button class="btn" data-cfg>Abrir configuração</button></div></div>
+
+  <footer>
+    <textarea id="draft" class="msg" placeholder="Mensagem…" rows="1"></textarea>
+    <button class="btn" id="btnSend">Enviar</button>
+  </footer>
+</div>
+
+<!-- modal de chave -->
+<div class="scrim" id="scrim">
+  <div class="modal">
+    <h2 id="mTitle">Sua chave privada</h2>
+    <p id="mSub"></p>
+    <label for="mKey">Chave privada</label>
+    <textarea id="mKey" rows="4" placeholder="-----BEGIN ENCRYPTED PRIVATE KEY-----"></textarea>
+    <label for="mPass">Senha</label>
+    <input id="mPass" type="password" autocomplete="current-password">
+    <label class="chk" id="mAllWrap"><input type="checkbox" id="mAll"> Abrir todas as mensagens para mim com esta chave</label>
+    <div class="st" id="mSt"></div>
+    <div class="row"><button class="btn" id="mOk">Confirmar</button><button class="btn alt" id="mCancel">Cancelar</button></div>
+  </div>
+</div>
+
+<script>
+const C = crypto.subtle, enc = new TextEncoder(), dec = new TextDecoder();
+const $ = id => document.getElementById(id);
+const store = { get(k){ try{return localStorage.getItem(k)}catch{return null} }, set(k,v){ try{localStorage.setItem(k,v)}catch{} } };
+
+// ---------- utilidades ----------
+const b64 = buf => { let s=''; const b=new Uint8Array(buf); for(let i=0;i<b.length;i+=0x8000) s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(String(s).replace(/\s+/g,'')), c=>c.charCodeAt(0));
+const pem = (label, buf) => `-----BEGIN ${label}-----\n${b64(buf).match(/.{1,64}/g).join('\n')}\n-----END ${label}-----`;
+function unpem(text){
+  const m = String(text).trim().match(/-----BEGIN ([A-Z ]+)-----([\s\S]+?)-----END \1-----/);
+  if(!m) throw new Error('Formato inválido: cole o bloco completo, com as linhas BEGIN/END.');
+  return { label:m[1], data:unb64(m[2]) };
+}
+const cat = (...a) => { const n=a.reduce((s,x)=>s+x.length,0), o=new Uint8Array(n); let p=0; for(const x of a){o.set(x,p);p+=x.length;} return o; };
+async function fingerprint(spki){
+  const h = new Uint8Array(await C.digest('SHA-256', spki));
+  return [...h.slice(0,16)].map(x=>x.toString(16).padStart(2,'0')).join('').match(/.{4}/g).join(':');
+}
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const OAEP = { name:'RSA-OAEP', hash:'SHA-256' }, PSS = { name:'RSA-PSS', hash:'SHA-256' };
+
+// ---------- senha da privada (mesmo formato do Cofre de Chaves) ----------
+const ITER = 310000;
+async function passKey(pass, salt){
+  const base = await C.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return C.deriveKey({name:'PBKDF2', salt, iterations:ITER, hash:'SHA-256'}, base, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+}
+async function lockPriv(pkcs8, pass){
+  const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await C.encrypt({name:'AES-GCM', iv}, await passKey(pass,salt), pkcs8));
+  return cat(new Uint8Array([1]), salt, iv, ct);
+}
+async function unlockPriv(blob, pass){
+  if(blob[0]!==1) throw new Error('Versão de chave protegida desconhecida.');
+  try{ return new Uint8Array(await C.decrypt({name:'AES-GCM', iv:blob.slice(17,29)}, await passKey(pass,blob.slice(1,17)), blob.slice(29))); }
+  catch{ throw new Error('Senha incorreta.'); }
+}
+
+// Abre a chave privada e devolve tudo o que é preciso (nada fica guardado depois)
+async function openIdentity(keyText, pass){
+  let {label, data} = unpem(keyText);
+  if(label==='PUBLIC KEY') throw new Error('Essa é a chave pública. Aqui vai a sua chave PRIVADA.');
+  if(label==='ENCRYPTED PRIVATE KEY'){ if(!pass) throw new Error('Informe a senha da chave.'); data = await unlockPriv(data, pass); }
+  else if(label!=='PRIVATE KEY') throw new Error('Chave privada não reconhecida.');
+  try{
+    const dk = await C.importKey('pkcs8', data, OAEP, true, ['decrypt']);
+    const jwk = await C.exportKey('jwk', dk);
+    const pubKey = await C.importKey('jwk', {kty:'RSA', n:jwk.n, e:jwk.e, alg:'RSA-OAEP-256', ext:true}, OAEP, true, ['encrypt']);
+    const spki = new Uint8Array(await C.exportKey('spki', pubKey));
+    const decKey = await C.importKey('pkcs8', data, OAEP, false, ['decrypt']);
+    const signKey = await C.importKey('pkcs8', data, PSS, false, ['sign']);
+    data.fill(0);
+    return { decKey, signKey, pubKey, spki, fp: await fingerprint(spki) };
+  }catch(e){ throw new Error('Não foi possível ler a chave privada (RSA PKCS#8 esperado).'); }
+}
+
+// ---------- estado ----------
+let pollTimer = null, loadTimer = null, online = false;
+let room = store.get('chat.room') || '';
+let contact = { name: store.get('chat.cName') || 'Contato', spki: null, fp: '' };
+let myFp = store.get('chat.myFp') || '';
+let docs = [];                 // mensagens ainda não lidas (no servidor)
+const revealed = new Map();    // id -> {text, verified, ts, until}  (só na memória, some sozinho)
+const sentLocal = new Map();   // id -> {ts, read}  (só nesta aba)
+const expiring = new Set();
+const SHOW_SECONDS = 60, TTL_MS = 24*60*60*1000;
+
+// ---------- configuração ----------
+function setCfg(on){ $('cfg').classList.toggle('on', on); $('btnCfg').textContent = on ? 'Fechar' : 'Configurar'; if(on) $('cfg').scrollIntoView({block:'start'}); }
+$('btnCfg').onclick = ()=> setCfg(!$('cfg').classList.contains('on'));
+document.addEventListener('click', e=>{ if(e.target.closest('[data-cfg]')) setCfg(true); });
+$('room').value = room; $('cName').value = store.get('chat.cName') || ''; $('cPub').value = store.get('chat.cPub') || '';
+async function loadContact(){
+  contact.name = $('cName').value.trim() || 'Contato';
+  try{
+    const {label,data} = unpem($('cPub').value);
+    if(label!=='PUBLIC KEY') throw 0;
+    await C.importKey('spki', data, OAEP, false, ['encrypt']);
+    contact.spki = data; contact.fp = await fingerprint(data);
+    $('cFp').textContent = 'Fingerprint do contato: ' + contact.fp + ' — confira com ele por telefone.';
+  }catch{ contact.spki = null; contact.fp=''; $('cFp').textContent = $('cPub').value.trim() ? 'Chave pública inválida.' : ''; }
+}
+$('cPub').addEventListener('input', loadContact);
+$('btnSave').onclick = async ()=>{
+  await loadContact();
+  const r = $('room').value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60);
+  if(!r){ banner('Escolha um nome de sala.', true); return; }
+  if(!contact.spki){ banner('Cole uma chave pública válida do contato.', true); return; }
+  $('room').value = r;
+  store.set('chat.room', r); store.set('chat.cName', $('cName').value.trim()); store.set('chat.cPub', $('cPub').value.trim());
+  setCfg(false);
+  joinRoom(r);
+};
+function banner(msg, err){ const b=$('banner'); b.textContent = msg||''; b.className = 'banner' + (err?' err':''); }
+
+// ---------- gerar chaves ----------
+$('btnGen').onclick = async e => {
+  const b=e.target, st=$('stGen'); b.disabled=true; st.textContent='Gerando…'; st.className='st';
+  try{
+    const pass=$('gPass').value; if(!pass) throw new Error('Defina uma senha.');
+    const kp = await C.generateKey({...OAEP, modulusLength:3072, publicExponent:new Uint8Array([1,0,1])}, true, ['encrypt','decrypt']);
+    const spki = new Uint8Array(await C.exportKey('spki', kp.publicKey));
+    const pkcs8 = new Uint8Array(await C.exportKey('pkcs8', kp.privateKey));
+    $('gPub').value = pem('PUBLIC KEY', spki);
+    $('gPriv').value = pem('ENCRYPTED PRIVATE KEY', await lockPriv(pkcs8, pass));
+    pkcs8.fill(0);
+    st.textContent='Pronto. Fingerprint: '+await fingerprint(spki); st.className='st okk';
+  }catch(err){ st.textContent=err.message; st.className='st err'; }
+  b.disabled=false;
+};
+document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async ()=>{
+  const ta=$(b.dataset.copy); if(!ta.value) return; const old=b.textContent;
+  try{ await navigator.clipboard.writeText(ta.value); b.textContent='Copiado ✓'; } catch{ ta.focus(); ta.select(); b.textContent='Selecionado'; }
+  setTimeout(()=>b.textContent=old,1600);
+});
+
+// ---------- modal: pede chave + senha ----------
+function askKey({title, sub, allowAll}){
+  return new Promise(resolve=>{
+    $('mTitle').textContent = title; $('mSub').textContent = sub || '';
+    $('mKey').value=''; $('mPass').value=''; $('mAll').checked=false; $('mSt').textContent=''; $('mSt').className='st';
+    $('mAllWrap').style.display = allowAll ? 'flex' : 'none';
+    $('scrim').classList.add('on'); setTimeout(()=>$('mKey').focus(), 50);
+    const close = v => { $('scrim').classList.remove('on'); $('mKey').value=''; $('mPass').value=''; $('mOk').onclick=$('mCancel').onclick=null; resolve(v); };
+    $('mCancel').onclick = ()=>close(null);
+    $('mOk').onclick = async ()=>{
+      $('mOk').disabled=true; $('mSt').textContent='Verificando…'; $('mSt').className='st';
+      try{ const id = await openIdentity($('mKey').value, $('mPass').value); id.all = $('mAll').checked; close(id); }
+      catch(err){ $('mSt').textContent=err.message; $('mSt').className='st err'; }
+      $('mOk').disabled=false;
+    };
+  });
+}
+
+// ---------- cifrar / decifrar mensagem ----------
+// pacote v2: [2, n, (lenHi,lenLo,chaveEmbrulhada)×n, iv(12), cifrado]
+async function sealMessage(text, recipientsSpki){
+  const aesRaw = crypto.getRandomValues(new Uint8Array(32)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const aes = await C.importKey('raw', aesRaw, 'AES-GCM', false, ['encrypt']);
+  const ct = new Uint8Array(await C.encrypt({name:'AES-GCM', iv}, aes, enc.encode(text)));
+  const parts = [new Uint8Array([2, recipientsSpki.length])];
+  for(const spki of recipientsSpki){
+    const pub = await C.importKey('spki', spki, OAEP, false, ['encrypt']);
+    const wk = new Uint8Array(await C.encrypt(OAEP, pub, aesRaw));
+    parts.push(new Uint8Array([wk.length>>8, wk.length&255]), wk);
+  }
+  aesRaw.fill(0);
+  return cat(...parts, iv, ct);
+}
+async function openMessage(packet, decKey){
+  if(packet[0]!==2) throw new Error('Versão desconhecida.');
+  let p=2; const wks=[];
+  for(let i=0;i<packet[1];i++){ const n=(packet[p]<<8)|packet[p+1]; wks.push(packet.slice(p+2,p+2+n)); p+=2+n; }
+  const iv=packet.slice(p,p+12), ct=packet.slice(p+12);
+  for(const wk of wks){
+    let raw; try{ raw = await C.decrypt(OAEP, decKey, wk); }catch{ continue; }
+    const aes = await C.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+    try{ return dec.decode(await C.decrypt({name:'AES-GCM', iv}, aes, ct)); }
+    catch{ throw new Error('Mensagem adulterada.'); }
+  }
+  throw new Error('Esta mensagem não foi cifrada para a sua chave.');
+}
+const signedBytes = (d, packet) => cat(enc.encode(`chat-v2\n${room}\n${d.ts}\n`), packet);
+
+// ---------- enviar ----------
+$('btnSend').onclick = async ()=>{
+  const text = $('draft').value.trim();
+  if(!text) return;
+  if(!room || !contact.spki){ setCfg(true); banner('Configure a sala e a chave pública do contato antes de enviar.', true); return; }
+  const id = await askKey({title:'Assinar e enviar', sub:'Sua chave privada assina a mensagem (prova que foi você). A mensagem é cifrada só para o contato: nem você conseguirá relê-la. Nada é salvo.'});
+  if(!id) return;
+  $('btnSend').disabled = true;
+  try{
+    myFp = id.fp; store.set('chat.myFp', myFp);
+    const packet = await sealMessage(text, [contact.spki]);
+    const d = { v:2, ts: Date.now(), fromFp: id.fp, toFp: contact.fp, fromPub: b64(id.spki), toPub: b64(contact.spki) };
+    const sig = new Uint8Array(await C.sign({...PSS, saltLength:32}, id.signKey, signedBytes(d, packet)));
+    d.packet = b64(packet); d.sig = b64(sig);
+    const res = await api('POST', '', d);
+    sentLocal.set(res.id, { ts:d.ts, read:false });
+    await refresh();
+    $('draft').value=''; autoGrow(); banner('');
+  }catch(err){
+    const msg = err && err.code==='room_full' ? 'A sala tem mensagens demais aguardando leitura.' :
+                'Falha ao enviar: ' + (err.message||err.code||err);
+    banner(msg, true);
+  }
+  $('btnSend').disabled = false;
+  render();
+};
+function autoGrow(){ const t=$('draft'); t.style.height='auto'; t.style.height=Math.min(140,t.scrollHeight)+'px'; }
+$('draft').addEventListener('input', autoGrow);
+$('draft').addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey && window.matchMedia('(pointer:fine)').matches){ e.preventDefault(); $('btnSend').click(); } });
+
+// ---------- abrir = decodificar e destruir ----------
+async function decryptAndBurn(snap, id){
+  const d = snap.data(); if(!d || !d.packet) return;
+  const packet = unb64(d.packet);
+  const text = await openMessage(packet, id.decKey);   // falha se não for para esta chave: nada é apagado
+  let verified = false;
+  try{
+    const pub = await C.importKey('spki', unb64(d.fromPub), PSS, false, ['verify']);
+    const fpOk = (await fingerprint(unb64(d.fromPub))) === d.fromFp;
+    verified = fpOk && d.fromFp===contact.fp && await C.verify({...PSS, saltLength:32}, pub, unb64(d.sig), signedBytes(d, packet));
+  }catch{}
+  revealed.set(snap.id, { text, verified, ts:d.ts, until: Date.now()+SHOW_SECONDS*1000 });
+  try{
+    const ts = Date.now();
+    const bsig = new Uint8Array(await C.sign({...PSS, saltLength:32}, id.signKey, enc.encode(`burn\n${room}\n${snap.id}\n${ts}`)));
+    await api('DELETE', '/'+snap.id, { ts, sig: b64(bsig) });
+  }catch(e){ banner('Mensagem lida, mas não foi possível apagá-la do servidor ('+(e.code||e.message)+').', true); }
+}
+async function openFlow(snapId){
+  const id = await askKey({title:'Decodificar e destruir', sub:`Informe sua chave privada e senha. A mensagem é apagada do servidor ao ser aberta e some da tela em ${SHOW_SECONDS} s.`, allowAll:true});
+  if(!id) return;
+  myFp = id.fp; store.set('chat.myFp', myFp);
+  const targets = id.all ? docs.filter(s=>(s.data()||{}).toFp===id.fp) : docs.filter(s=>s.id===snapId);
+  if(id.all && !targets.length){ banner('Nenhuma mensagem pendente para esta chave.', true); return; }
+  let fails = 0;
+  for(const s of targets){ try{ await decryptAndBurn(s, id); }catch(e){ fails++; if(!id.all) banner(e.message, true); } }
+  if(id.all && fails) banner(`${fails} mensagem(ns) não puderam ser abertas com esta chave.`, true);
+  render();
+}
+// apaga da tela o texto que já passou do tempo
+setInterval(()=>{
+  let changed = false;
+  for(const [k,v] of revealed){ if(Date.now() >= v.until){ v.text = ''; revealed.delete(k); changed = true; } }
+  if(changed || revealed.size) render();
+}, 1000);
+
+// ---------- render ----------
+const fmtTime = ts => new Date(ts).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+const whoLabel = fp => fp===myFp ? 'Você' : fp===contact.fp ? esc(contact.name) : '⚠ chave desconhecida';
+function render(){
+  const list = $('list');
+  const items = [];
+  for(const s of docs){
+    const d = s.data() || {};
+    if(revealed.has(s.id)) continue;
+    items.push({ ts:d.ts||0, html: (d.fromFp===myFp)
+      ? `<div class="bub me"><div class="meta"><b>Você</b><span>${fmtTime(d.ts)}</span></div><div class="body locked">🔒 enviada — aguardando leitura</div></div>`
+      : `<div class="bub"><div class="meta"><b>${whoLabel(d.fromFp)}</b><span>${fmtTime(d.ts)}</span></div><div class="body locked">🔒 cifrada <button class="btn alt sm" data-open="${esc(s.id)}">Decodificar</button></div></div>` });
+  }
+  for(const [k,v] of revealed){
+    const left = Math.max(0, Math.ceil((v.until-Date.now())/1000));
+    const seal = v.verified ? '<span class="ok">✓ assinatura de '+esc(contact.name)+'</span>' : '<span class="bad">✗ assinatura não confere</span>';
+    items.push({ ts:v.ts, html:`<div class="bub"><div class="meta"><b>${whoLabel(contact.fp)}</b><span>${fmtTime(v.ts)}</span>${seal}<span>🔥 some em ${left}s</span></div><div class="body">${esc(v.text)}</div></div>` });
+  }
+  for(const [k,v] of sentLocal){
+    if(v.read) items.push({ ts:v.ts, html:`<div class="bub me"><div class="meta"><b>Você</b><span>${fmtTime(v.ts)}</span></div><div class="body locked">✓ lida e destruída</div></div>` });
+  }
+  if(!items.length){ list.innerHTML = `<div class="empty">${room ? 'Nenhuma mensagem pendente. Mensagens lidas são destruídas e não ficam aqui.' : 'Escolha uma sala e cole a chave pública do seu contato.<br><br><button class="btn" data-cfg>Abrir configuração</button>'}</div>`; return; }
+  items.sort((a,b)=>a.ts-b.ts);
+  const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
+  list.innerHTML = items.map(i=>i.html).join('');
+  list.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openFlow(b.dataset.open));
+  if(atBottom) list.scrollTop = list.scrollHeight;
+}
+
+// ---------- sala (servidor guarda só cifrado, e só até ser lido) ----------
+async function api(method, path, body){
+  const res = await fetch(`/api/rooms/${room}/msgs${path}`, {
+    method, headers: body ? {'content-type':'application/json'} : {}, body: body ? JSON.stringify(body) : undefined, cache:'no-store'
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok){ const e = new Error(data.detail || data.error || ('HTTP '+res.status)); e.code = data.error; throw e; }
+  return data;
+}
+const wrap = d => ({ id:d.id, exists:true, data:()=>d });
+async function refresh(){
+  if(!room) return;
+  try{
+    const list = await api('GET', '');
+    clearTimeout(loadTimer);
+    if(!online) banner('');
+    online = true;
+    docs = list.map(wrap);
+    const ids = new Set(list.map(d=>d.id));
+    for(const [k,v] of sentLocal){ if(!ids.has(k)) v.read = true; }
+    render();
+  }catch(e){ if(online) banner('Sem conexão com o servidor. Tentando de novo…', true); online = false; }
+}
+function joinRoom(r){
+  room = r; $('roomPill').textContent = 'sala: ' + r;
+  revealed.clear(); sentLocal.clear(); docs = []; render();
+  clearInterval(pollTimer); clearTimeout(loadTimer);
+  loadTimer = setTimeout(()=>banner('Não foi possível carregar as mensagens. Verifique a conexão.', true), 10000);
+  refresh();
+  pollTimer = setInterval(()=>{ if(!document.hidden) refresh(); }, 3000);
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refresh(); });
+
+(async ()=>{
+  await loadContact();
+  if(room) { $('roomPill').textContent = 'sala: ' + room; } else { setCfg(true); }
+  if(room) joinRoom(room);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+name: Deploy apps
+
+# Publica no Cloudflare Workers cada app de apps/ que tenha wrangler.toml.
+# Em push na main, só os apps alterados são publicados.
+on:
+  push:
+    branches: [main]
+    paths: ["apps/**"]
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "Nome da pasta em apps/ (vazio = todos)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.list.outputs.apps }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: list
+        env:
+          INPUT_APP: ${{ inputs.app }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          all() { for f in apps/*/wrangler.toml; do [ -f "$f" ] && basename "$(dirname "$f")"; done; }
+          if [ -n "${INPUT_APP:-}" ]; then
+            [[ "$INPUT_APP" =~ ^[a-z0-9-]+$ ]] || { echo "nome de app inválido"; exit 1; }
+            candidates="$INPUT_APP"
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] || [ -z "${BEFORE:-}" ] \
+               || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE" 2>/dev/null; then
+            candidates="$(all)"
+          else
+            candidates="$(git diff --name-only "$BEFORE" "$AFTER" -- apps | cut -d/ -f2 | sort -u)"
+          fi
+          apps="$(for a in $candidates; do [ -f "apps/$a/wrangler.toml" ] && echo "$a"; done | jq -R . | jq -sc .)"
+          echo "Apps para publicar: $apps"
+          echo "apps=$apps" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: detect
+    if: needs.detect.outputs.apps != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJson(needs.detect.outputs.apps) }}
+    name: deploy ${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/${{ matrix.app }}
+          wranglerVersion: "4"
+          command: deploy
