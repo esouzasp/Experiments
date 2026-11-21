@@ -46,10 +46,12 @@
   ol.how li{margin:4px 0}
   code{font-family:var(--mono);font-size:12.5px}
 </style>
+<link rel="stylesheet" href="/retro.css">
 </head>
 <body>
 <div class="wrap">
-  <h1>🔐 Cofre de Chaves <a href="/" style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:none;margin-left:8px">← voltar ao chat</a></h1>
+  <h1><span class="prompt">&gt; </span><span data-scramble="COFRE_DE_CHAVES">COFRE_DE_CHAVES</span><span class="cur">█</span> <a href="/" style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:none;margin-left:8px">← voltar ao chat</a></h1>
+  <div class="hx-stream" aria-hidden="true"></div>
   <p class="sub">Criptografia híbrida RSA‑OAEP + AES‑256‑GCM. Tudo roda no seu navegador; nenhuma chave ou mensagem sai daqui.</p>
 
   <div class="tabs" role="tablist">
@@ -299,5 +301,6 @@ document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async ()=>{
   setTimeout(()=>b.textContent=old, 1800);
 });
 </script>
+<script src="/retro.js" defer></script>
 </body>
 </html>

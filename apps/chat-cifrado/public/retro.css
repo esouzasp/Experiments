@@ -1,0 +1,39 @@
+/* Tema terminal retrô: fundo preto, texto branco, fonte monoespaçada */
+:root{
+  --bg:#000; --panel:#050505; --line:#3a3a3a; --text:#f2f2f2; --muted:#8c8c8c;
+  --accent:#f2f2f2; --accent2:#bdbdbd; --warn:#d0d0d0; --err:#ff6b6b; --ok:#f2f2f2;
+  --me:#0e0e0e; --them:#000;
+  --mono:"Courier New", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#000; --panel:#050505; --line:#3a3a3a; --text:#f2f2f2; --muted:#8c8c8c;
+    --accent:#f2f2f2; --accent2:#bdbdbd; --warn:#d0d0d0; --err:#ff6b6b; --ok:#f2f2f2; --me:#0e0e0e; --them:#000; }
+}
+html,body{background:#000;color-scheme:dark}
+body,button,input,textarea,select,code{font-family:var(--mono)!important}
+body{color:var(--text);text-shadow:0 0 3px rgba(255,255,255,.28);letter-spacing:.02em}
+*{border-radius:0!important}
+::selection{background:#f2f2f2;color:#000;text-shadow:none}
+
+.btn{background:var(--text)!important;color:#000!important;border:1px solid var(--text)!important;text-shadow:none!important;text-transform:uppercase;letter-spacing:.06em}
+.btn.alt{background:transparent!important;color:var(--text)!important;text-shadow:inherit!important}
+.btn:hover:not(:disabled){filter:none;outline:1px dashed var(--text);outline-offset:2px}
+textarea,input,select{background:#000!important;color:var(--text)!important;border:1px solid var(--line)!important;caret-color:var(--text)}
+textarea:focus,input:focus,select:focus{outline:none;border-color:var(--text)!important}
+::placeholder{color:#555}
+.dot{background:var(--text)!important}
+.bub{border-color:#2e2e2e}
+.bub.me{border-color:#6a6a6a}
+.modal,.card,.drawer{box-shadow:none}
+.scrim{background:rgba(0,0,0,.8)!important}
+
+/* Linhas de varredura do monitor */
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+  background:repeating-linear-gradient(to bottom,rgba(255,255,255,.035) 0 1px,transparent 1px 3px)}
+
+/* Animação do cabeçalho */
+.prompt{color:var(--muted)}
+.cur{display:inline-block;margin-left:2px;animation:blink 1.05s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.hx-stream{font:10px/16px var(--mono);color:#3f3f3f;text-shadow:none;white-space:nowrap;overflow:hidden;height:16px;user-select:none;letter-spacing:.12em}
+@media (prefers-reduced-motion: reduce){ .cur{animation:none} }

@@ -61,17 +61,19 @@
   .st.err{color:var(--err)} .st.okk{color:var(--ok)}
   details{margin-top:12px} summary{cursor:pointer;color:var(--muted);font-size:13px}
 </style>
+<link rel="stylesheet" href="/retro.css">
 </head>
 <body>
 <div class="app">
   <header>
-    <h1>🔐 Chat Cifrado</h1>
+    <h1><span class="prompt">&gt; </span><span data-scramble="CHAT_CIFRADO">CHAT_CIFRADO</span><span class="cur">█</span></h1>
     <span class="pill" id="roomPill">sala: —</span>
     <button class="btn alt sm" id="btnLock" style="display:none" title="Esquecer a chave agora">🔓 Chave ativa · Bloquear</button>
     <button class="btn alt sm" id="btnLeave" style="display:none">Sair da sala</button>
     <a class="btn alt sm" href="/chaves/" style="text-decoration:none">🔑 Gerar chaves</a>
     <button class="btn alt sm" id="btnCfg">Configurar</button>
   </header>
+  <div class="hx-stream" aria-hidden="true" style="padding:0 14px"></div>
 
   <div class="drawer" id="cfg">
     <label for="room">Sala (as duas pessoas usam o mesmo nome)</label>
@@ -445,5 +447,6 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refresh
   if(room) joinRoom(room);
 })();
 </script>
+<script src="/retro.js" defer></script>
 </body>
 </html>
