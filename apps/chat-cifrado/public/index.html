@@ -67,6 +67,7 @@
   <header>
     <h1>🔐 Chat Cifrado</h1>
     <span class="pill" id="roomPill">sala: —</span>
+    <button class="btn alt sm" id="btnLeave" style="display:none">Sair da sala</button>
     <a class="btn alt sm" href="/chaves/" style="text-decoration:none">🔑 Gerar chaves</a>
     <button class="btn alt sm" id="btnCfg">Configurar</button>
   </header>
@@ -74,8 +75,6 @@
   <div class="drawer" id="cfg">
     <label for="room">Sala (as duas pessoas usam o mesmo nome)</label>
     <input id="room" class="plain" placeholder="ex.: everton-ana" autocomplete="off">
-    <label for="cName">Nome do contato</label>
-    <input id="cName" class="plain" placeholder="ex.: Ana">
     <label for="cPub">Chave pública do contato</label>
     <textarea id="cPub" rows="4" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
     <div class="fp" id="cFp"></div>
@@ -181,7 +180,7 @@ async function openIdentity(keyText, pass){
 // ---------- estado ----------
 let pollTimer = null, loadTimer = null, online = false;
 let room = store.get('chat.room') || '';
-let contact = { name: store.get('chat.cName') || 'Contato', spki: null, fp: '' };
+let contact = { name: 'Contato', spki: null, fp: '' };
 let myFp = store.get('chat.myFp') || '';
 let docs = [];                 // mensagens ainda não lidas (no servidor)
 const revealed = new Map();    // id -> {text, verified, ts, until}  (só na memória, some sozinho)
@@ -192,9 +191,8 @@ const SHOW_SECONDS = 60, TTL_MS = 24*60*60*1000;
 // ---------- configuração ----------
 function setCfg(on){ $('cfg').classList.toggle('on', on); $('btnCfg').textContent = on ? 'Fechar' : 'Configurar'; if(on) $('cfg').scrollIntoView({block:'start'}); }
 $('btnCfg').onclick = ()=> setCfg(!$('cfg').classList.contains('on'));
-$('room').value = room; $('cName').value = store.get('chat.cName') || ''; $('cPub').value = store.get('chat.cPub') || '';
+$('room').value = room; $('cPub').value = store.get('chat.cPub') || '';
 async function loadContact(){
-  contact.name = $('cName').value.trim() || 'Contato';
   try{
     const {label,data} = unpem($('cPub').value);
     if(label!=='PUBLIC KEY') throw 0;
@@ -210,7 +208,7 @@ $('btnSave').onclick = async ()=>{
   if(!r){ banner('Escolha um nome de sala.', true); return; }
   if(!contact.spki){ banner('Cole uma chave pública válida do contato.', true); return; }
   $('room').value = r;
-  store.set('chat.room', r); store.set('chat.cName', $('cName').value.trim()); store.set('chat.cPub', $('cPub').value.trim());
+  store.set('chat.room', r); store.set('chat.cPub', $('cPub').value.trim());
   setCfg(false);
   joinRoom(r);
 };
@@ -366,7 +364,7 @@ function render(){
   }
   for(const [k,v] of revealed){
     const left = Math.max(0, Math.ceil((v.until-Date.now())/1000));
-    const seal = v.verified ? '<span class="ok">✓ assinatura de '+esc(contact.name)+'</span>' : '<span class="bad">✗ assinatura não confere</span>';
+    const seal = v.verified ? '<span class="ok">✓ assinatura válida</span>' : '<span class="bad">✗ assinatura não confere</span>';
     items.push({ ts:v.ts, html:`<div class="bub"><div class="meta"><b>${whoLabel(contact.fp)}</b><span>${fmtTime(v.ts)}</span>${seal}<span>🔥 some em ${left}s</span></div><div class="body">${esc(v.text)}</div></div>` });
   }
   for(const [k,v] of sentLocal){
@@ -403,8 +401,19 @@ async function refresh(){
     render();
   }catch(e){ if(online) banner('Sem conexão com o servidor. Tentando de novo…', true); online = false; }
 }
+function leaveRoom(){
+  clearInterval(pollTimer); clearTimeout(loadTimer);
+  for(const v of revealed.values()) v.text = '';
+  revealed.clear(); sentLocal.clear(); docs = [];
+  room = ''; contact.spki = null; contact.fp = '';
+  try{ localStorage.removeItem('chat.room'); localStorage.removeItem('chat.cPub'); }catch{}
+  $('room').value = ''; $('cPub').value = ''; $('cFp').textContent = '';
+  $('roomPill').textContent = 'sala: —'; $('btnLeave').style.display = 'none';
+  $('draft').value = ''; banner(''); render(); setCfg(true);
+}
+$('btnLeave').onclick = leaveRoom;
 function joinRoom(r){
-  room = r; $('roomPill').textContent = 'sala: ' + r;
+  room = r; $('roomPill').textContent = 'sala: ' + r; $('btnLeave').style.display = '';
   revealed.clear(); sentLocal.clear(); docs = []; render();
   clearInterval(pollTimer); clearTimeout(loadTimer);
   loadTimer = setTimeout(()=>banner('Não foi possível carregar as mensagens. Verifique a conexão.', true), 10000);
