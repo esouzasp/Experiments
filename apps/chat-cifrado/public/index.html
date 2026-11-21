@@ -46,6 +46,8 @@
   .meta{font-size:11.5px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .body{margin-top:4px;white-space:pre-wrap;word-break:break-word}
   .locked{font-style:italic;color:var(--muted)}
+  .cipher{margin-top:6px;font:11px/1.4 var(--mono);color:var(--muted);word-break:break-all;opacity:.8;max-height:4.2em;overflow:hidden}
+  .divider{margin-top:6px;font-size:11px;color:var(--muted);letter-spacing:.08em}
   .ok{color:var(--ok)} .bad{color:var(--err)}
   footer{border-top:1px solid var(--line);padding:10px 14px;display:flex;gap:8px;align-items:flex-end;background:var(--bg)}
   footer textarea{min-height:44px;max-height:140px;resize:none}
@@ -352,7 +354,7 @@ async function decryptAndBurn(snap, id){
     const fpOk = (await fingerprint(unb64(d.fromPub))) === d.fromFp;
     verified = fpOk && d.fromFp===contact.fp && await C.verify({...PSS, saltLength:32}, pub, unb64(d.sig), signedBytes(d, packet));
   }catch{}
-  revealed.set(snap.id, { text, verified, ts:d.ts, until: Date.now()+SHOW_SECONDS*1000 });
+  revealed.set(snap.id, { text, verified, ts:d.ts, cipher:d.packet, until: Date.now()+SHOW_SECONDS*1000 });
   try{
     const ts = Date.now();
     const bsig = new Uint8Array(await C.sign({...PSS, saltLength:32}, id.signKey, enc.encode(`burn\n${room}\n${snap.id}\n${ts}`)));
@@ -383,17 +385,18 @@ const whoLabel = fp => fp===myFp ? 'Você' : fp===contact.fp ? esc(contact.name)
 function render(){
   const list = $('list');
   const items = [];
+  const cipherBox = c => `<div class="cipher" title="mensagem original (cifrada)">${esc(String(c||'').slice(0,240))}${String(c||'').length>240?'…':''}</div>`;
   for(const s of docs){
     const d = s.data() || {};
     if(revealed.has(s.id)) continue;
     items.push({ ts:d.ts||0, html: (d.fromFp===myFp)
-      ? `<div class="bub me"><div class="meta"><b>Você</b><span>${fmtTime(d.ts)}</span></div><div class="body locked">🔒 enviada — aguardando leitura</div></div>`
-      : `<div class="bub"><div class="meta"><b>${whoLabel(d.fromFp)}</b><span>${fmtTime(d.ts)}</span></div><div class="body locked">🔒 cifrada <button class="btn alt sm" data-open="${esc(s.id)}">Decodificar</button></div></div>` });
+      ? `<div class="bub me"><div class="meta"><b>Você</b><span>${fmtTime(d.ts)}</span></div>${cipherBox(d.packet)}<div class="body locked">🔒 enviada — aguardando leitura</div></div>`
+      : `<div class="bub"><div class="meta"><b>${whoLabel(d.fromFp)}</b><span>${fmtTime(d.ts)}</span></div>${cipherBox(d.packet)}<div class="body locked">🔒 cifrada <button class="btn alt sm" data-open="${esc(s.id)}">Decodificar</button></div></div>` });
   }
   for(const [k,v] of revealed){
     const left = Math.max(0, Math.ceil((v.until-Date.now())/1000));
     const seal = v.verified ? '<span class="ok">✓ assinatura válida</span>' : '<span class="bad">✗ assinatura não confere</span>';
-    items.push({ ts:v.ts, html:`<div class="bub"><div class="meta"><b>${whoLabel(contact.fp)}</b><span>${fmtTime(v.ts)}</span>${seal}<span>🔥 some em ${left}s</span></div><div class="body">${esc(v.text)}</div></div>` });
+    items.push({ ts:v.ts, html:`<div class="bub"><div class="meta"><b>${whoLabel(contact.fp)}</b><span>${fmtTime(v.ts)}</span>${seal}<span>🔥 some em ${left}s</span></div><div class="divider">ORIGINAL (CIFRADA)</div>${cipherBox(v.cipher)}<div class="divider">▼ DECIFRADA</div><div class="body">${esc(v.text)}</div></div>` });
   }
   if(!items.length){ list.innerHTML = `<div class="empty">${room ? 'Nenhuma mensagem pendente.' : 'Escolha uma sala e cole a chave pública do seu contato em <b>Configurar</b>.'}</div>`; return; }
   items.sort((a,b)=>a.ts-b.ts);

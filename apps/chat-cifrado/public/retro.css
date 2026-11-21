@@ -1,9 +1,11 @@
 /* Tema terminal retrô: fundo preto, texto branco, fonte monoespaçada */
+@font-face{font-family:"IBM Plex Mono";src:url(/fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"IBM Plex Mono";src:url(/fonts/ibm-plex-mono-latin-600-normal.woff2) format("woff2");font-weight:600 700;font-style:normal;font-display:swap}
 :root{
   --bg:#000; --panel:#050505; --line:#3a3a3a; --text:#f2f2f2; --muted:#8c8c8c;
   --accent:#f2f2f2; --accent2:#bdbdbd; --warn:#d0d0d0; --err:#ff6b6b; --ok:#f2f2f2;
   --me:#0e0e0e; --them:#000;
-  --mono:"Courier New", ui-monospace, Menlo, Consolas, monospace;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: light){
   :root{ --bg:#000; --panel:#050505; --line:#3a3a3a; --text:#f2f2f2; --muted:#8c8c8c;
@@ -11,7 +13,15 @@
 }
 html,body{background:#000;color-scheme:dark}
 body,button,input,textarea,select,code{font-family:var(--mono)!important}
-body{color:var(--text);text-shadow:0 0 3px rgba(255,255,255,.28);letter-spacing:.02em}
+body{color:var(--text);text-shadow:0 0 2px rgba(255,255,255,.18);letter-spacing:0;font-size:16px;line-height:1.55}
+label,.meta,.sub,.note,.st,.status,summary,.fp{font-size:14px!important}
+.meta{font-size:13px!important}
+.body{font-size:16px}
+textarea,input,select{font-size:15px!important;line-height:1.5!important}
+textarea.msg,input.plain{font-size:16px!important}
+.btn{font-size:14px!important}
+.btn.sm{font-size:13px!important}
+.cipher{font-size:12px!important}
 *{border-radius:0!important}
 ::selection{background:#f2f2f2;color:#000;text-shadow:none}
 
